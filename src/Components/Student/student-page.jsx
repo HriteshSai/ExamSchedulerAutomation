@@ -1,20 +1,21 @@
 import React, { Component } from 'react';
-import Navout from '../navout';
-import '../pages.css';
 import { auth, db } from '../../firebase';
-import { doc, getDoc, query, collection, getDocs } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
+import Navout from '../navout';
+import { query, collection, getDocs } from 'firebase/firestore';
 
 class Student extends Component {
   constructor(props) {
     super(props);
     this.state = {
-      curruser: '',
-      fname: '',
-      lname: '',
-      department: '',
-      exams: [],
-      error: null,
-      loading: true,
+      curruser: '',           // Current Student ID
+      fname: '',              // First Name
+      lname: '',              // Last Name
+      department: '',         // Department
+      gradYear: '',           // Graduation Year
+      exams: [],              // Exams list
+      error: null,            // Error handling
+      loading: true,          // Loading state
     };
   }
 
@@ -27,20 +28,20 @@ class Student extends Component {
 
     const email = user.email;
     const prefix = email.split('@')[0];
-    const userId = prefix.slice(-10).toUpperCase();
+    const userId = prefix.slice(-10).toUpperCase(); // Extract the Student ID
     this.setState({ curruser: userId });
 
     try {
       const studentInfo = await this.getStudentInfo(userId);
       if (studentInfo) {
-        const { fname, lname, department } = studentInfo;
-        this.setState({ fname, lname, department, loading: false });
-        await this.fetchExams(department);
+        const { fname, lname, department, gradYear } = studentInfo;
+        this.setState({ fname, lname, department, gradYear, loading: false });
+        await this.fetchExams(department); // Fetch exams based on department
       }
     } catch (error) {
       console.error('[DEBUG] Error initializing student page:', error.message);
       this.setState({
-        error: 'Failed to initialize. Please try again.',
+        error: 'Failed to initialize student page. Please try again.',
         loading: false,
       });
     }
@@ -48,42 +49,29 @@ class Student extends Component {
 
   async getStudentInfo(userId) {
     console.log('[DEBUG] Fetching student info for S_ID:', userId);
+
     try {
-      const studentsCollectionRef = collection(db, 'Students');
-      const graduationYearSnapshot = await getDocs(studentsCollectionRef);
+      const studentRef = doc(db, 'AllStudents', userId);
+      const studentSnapshot = await getDoc(studentRef);
 
-      for (const gradYearDoc of graduationYearSnapshot.docs) {
-        const gradYear = gradYearDoc.id;
-        const deptCollectionRef = collection(db, 'Students', gradYear);
-        const departmentsSnapshot = await getDocs(deptCollectionRef);
+      if (studentSnapshot.exists()) {
+        const studentData = studentSnapshot.data();
+        console.log('[DEBUG] Found student:', studentData);
 
-        for (const deptDoc of departmentsSnapshot.docs) {
-          const dept = deptDoc.id;
-          const studentRef = doc(db, 'Students', gradYear, dept, userId);
-          console.log('[DEBUG] Querying Path:', studentRef.path);
-
-          const studentSnapshot = await getDoc(studentRef);
-          if (studentSnapshot.exists()) {
-            const studentData = studentSnapshot.data();
-            console.log('[DEBUG] Found student:', studentData);
-            return {
-              fname: studentData.Fname,
-              lname: studentData.Lname,
-              department: studentData.Dept,
-            };
-          }
-        }
+        return {
+          fname: studentData.Fname,
+          lname: studentData.Lname,
+          department: studentData.Dept || studentData.Department,
+          gradYear: studentData.GraduationYear,
+        };
+      } else {
+        console.error('[DEBUG] No student found with this ID');
+        this.setState({ error: 'Student not found.', loading: false });
+        return null;
       }
-
-      console.error('[DEBUG] No matching document found for S_ID:', userId);
-      this.setState({ error: 'Student information not found.', loading: false });
-      return null;
     } catch (error) {
-      console.error('[DEBUG] Error fetching student information:', error.message);
-      this.setState({
-        error: 'Failed to fetch student information. Please try again later.',
-        loading: false,
-      });
+      console.error('[DEBUG] Error fetching student info:', error.message);
+      this.setState({ error: 'Failed to fetch student information.', loading: false });
       return null;
     }
   }
@@ -102,20 +90,32 @@ class Student extends Component {
         collection(db, 'Examination_Schedule', department, 'Courses')
       );
       const querySnapshot = await getDocs(scheduleQuery);
-      const exams = querySnapshot.docs.map((doc) => doc.data());
-      console.log('[DEBUG] Exams:', exams);
+      const exams = querySnapshot.docs.map((doc) => {
+        const data = doc.data();
+        return {
+          Course_id: data.Course_id,
+          Course_name: data.Course_name,
+          Date: data.Date,
+          Time: data.Time,
+          Duration: data.Duration,
+          examType: data.examType || 'Unknown Type', // Ensure examType is retrieved
+        };
+      });
+
+      console.log('[DEBUG] Exams:', exams); // Debugging output
       this.setState({ exams, loading: false });
     } catch (error) {
+      console.error('[DEBUG] Error fetching exams:', error);
       this.setState({
         error: 'Failed to fetch exam schedules.',
         loading: false,
       });
-      console.error('[DEBUG] Error fetching exams:', error);
     }
   }
 
   renderExamTable() {
     const { exams } = this.state;
+
     if (exams.length === 0) {
       return (
         <p style={{ marginLeft: '18%', color: 'white' }}>
@@ -124,52 +124,13 @@ class Student extends Component {
       );
     }
 
-    return exams.map((exam, index) => (
-      <div key={index} style={{ color: 'red', marginLeft: '18%' }}>
-        <table>
-          <tbody>
-            <tr>
-              <td>{exam.Course_id}</td>
-              <td>{exam.Course_name}</td>
-              <td>{exam.Date}</td>
-              <td>{exam.Time}</td>
-              <td>{exam.Duration}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    ));
-  }
-
-  render() {
-    const { fname, lname, loading, error } = this.state;
-
     return (
       <div>
-        <Navout />
-        {loading && (
-          <p style={{ marginLeft: '18%', color: 'yellow' }}>Loading...</p>
-        )}
-        {error && (
-          <p style={{ marginLeft: '18%', color: 'red' }}>{error}</p>
-        )}
-        <div style={{ marginLeft: '1%' }}>
-          <h1 style={{ color: '#fff', fontFamily: 'serif' }}>
-            <b>Hello {fname} {lname}</b>
-          </h1>
-        </div>
+        <table style={{ margin: '0 auto', width: '80%', textAlign: 'center', border: '1px solid #ccc' }}>
 
-        <br /><br />
-
-        <h1 style={{ color: '#a9c6b4', fontFamily: 'serif', marginLeft: '39%' }}>
-          <b>Upcoming Exams</b>
-        </h1>
-
-        <br /><br />
-
-        <table style={{ color: 'yellow', marginLeft: '18%' }}>
           <thead>
-            <tr>
+            <tr style={{ backgroundColor: 'purple', color: 'white' }}>
+              <th>Exam Type</th> {/* New column added */}
               <th>Course ID</th>
               <th>Course Name</th>
               <th>Date</th>
@@ -177,9 +138,33 @@ class Student extends Component {
               <th>Duration</th>
             </tr>
           </thead>
-        </table>
+          <tbody>
+            {exams.map((exam, index) => (
+              <tr key={index} style={{ backgroundColor: 'white', fontWeight: 'bold' }}> {/* Apply bold to entire row */}
+                <td style={{ color: 'blue' }}>{exam.examType}</td>
+                <td>{exam.Course_id}</td>
+                <td>{exam.Course_name}</td>
+                <td>{exam.Date}</td>
+                <td>{exam.Time}</td>
+                <td>{exam.Duration}</td>
+              </tr>
+            ))}
+          </tbody>
 
-        <div>{this.renderExamTable()}</div>
+
+        </table>
+      </div>
+    );
+  }
+
+  render() {
+    return (
+      <div>
+        <Navout /> {/* Placed Navout here to ensure it renders correctly */}
+        <h1 style={{ marginLeft: '5%', marginTop: '20px' }}>Student Exam Schedule</h1>
+        {this.state.loading && <p style={{ marginLeft: '5%', color: 'yellow' }}>Loading...</p>}
+        {this.state.error && <p style={{ marginLeft: '5%', color: 'red' }}>{this.state.error}</p>}
+        {this.renderExamTable()} {/* Ensure this function is called inside render() */}
       </div>
     );
   }
@@ -196,106 +181,3 @@ export default Student;
 
 
 
-
-
-
-
-
-// import React, { Component } from 'react'
-// import Navout from '../navout';
-// // import fire from '../firebase'
-// import '../pages.css'
-// import { auth, db } from '../firebase';
-// import {
-//   getDocs,
-//   collection,
-//   setDoc,
-//   doc,
-//   query,
-//   where
-// } from 'firebase/firestore';
-// import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth'; // if needed
-
-
-// class Student extends Component{
-//     constructor(props){
-//         super(props);
-//         this.state={
-//             qdata: {},
-//             curruser: '',
-//             fname:'',
-//             lname: ''
-//         }
-//       this._renderObject=this._renderObject.bind(this);
-//       this.uname=this.uname.bind(this);
-//       this.head=this.head.bind(this);
-//     }
-//     componentWillMount() {
-//         collection(db, 'Exam')
-//           .get()
-//           .then(querySnapshot => {
-//             const data = querySnapshot.docs.map(doc => doc.data());
-//             this.setState({ qdata: data,curruser: fire.auth().currentUser.email.slice(0,16) });
-           
-//           });
-//       }
-//       _renderObject(){
-//         return Object.keys(this.state.qdata).map((obj) => {
-//             if(this.state.qdata[obj].Es_id!=null){
-//                 if(this.state.curruser.slice(8,11)==(this.state.qdata[obj].Course_id.slice(2,5).toLowerCase())){
-//                     if((Number(this.state.curruser.substr(-3))>=Number(this.state.qdata[obj].Ss_id.substr(-3)))&&
-//             (Number(this.state.curruser.substr(-3))<=Number(this.state.qdata[obj].Es_id.substr(-3))))
-//             {
-//                 return (
-//                     <div style={{color:"red",marginLeft:"18%"}}>
-//                     <table>
-//                         <tr>
-//                             <td>{this.state.qdata[obj].Room_no} </td>
-//                             <td>{this.state.qdata[obj].Exam_id}</td>
-//                             <td>{this.state.qdata[obj].Course_id}</td>
-//                             <td>{this.state.qdata[obj].Ss_id} - 
-//                             {this.state.qdata[obj].Es_id}</td>
-//                             <td>{this.state.qdata[obj].Date}</td>
-//                             <td>{this.state.qdata[obj].time}</td>
-//                             <td>{this.state.qdata[obj].duration}</td>
-//                         </tr>
-//                     </table>  
-//                     </div>
-//                 )
-//             }
-//                 }
-               
-//             }          
-//         })
-//     }
-//     uname(){
-//         fire.firestore().collection("Student").where("S_ID", "==" , this.state.curruser).get()
-//         .then(querySnapshot => {
-//             const fn = querySnapshot.docs.map(doc => doc.data().Fname);
-//             const ln = querySnapshot.docs.map(doc => doc.data().Lname);
-//             this.setState({fname: fn[0],lname: ln[0]}); 
-//             this.head();      
-//           });
-// }
-//     head(){
-//     return<h1 style={{color:"#fff",fontFamily:"serif"}}><b>Hello {this.state.fname} {this.state.lname}</b></h1>
-//     }
-//     render(){
-        
-//         return(
-//         <div>
-//             <Navout/>
-//             {this.uname()}
-//         <div style={{marginLeft:"1%"}}>{this.head()}</div><br/><br/>
-//         <h1 style={{color:"#a9c6b4",fontFamily:"serif",marginLeft:"39%"}}><b>Upcoming Exams</b></h1><br/><br/>
-//             <table style={{color:"yellow",marginLeft:"18%"}}>
-//                 <tr>
-//                     <th>Room no</th><th>Exam id</th><th>Course_id</th><th>Student roll-nos</th><th>Date</th><th>Time</th><th>Duration</th>
-//                 </tr>
-//             </table>
-//             <div>{this._renderObject()}</div>
-//         </div>
-//         )
-//     }
-// }
-// export default Student;

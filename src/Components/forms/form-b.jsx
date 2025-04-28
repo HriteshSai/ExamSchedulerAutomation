@@ -31,11 +31,12 @@ export default class Sdel extends Component {
     }
 
     try {
-      const StudentName = `${Lname} ${Fname}`;
-      const studentRef = doc(db, GraduationYear, Dept, S_ID, StudentName);
+      // const StudentName = `${Lname} ${Fname}`;
+      const studentRef = doc(db, 'Students', GraduationYear, Dept, S_ID);
 
       const studentSnap = await getDoc(studentRef);
       if (!studentSnap.exists()) {
+        console.log('Student Id', S_ID);
         alert(`No student found with ID: ${S_ID}`);
         return;
       }
@@ -120,58 +121,3 @@ export default class Sdel extends Component {
 
 
 
-// import React, { Component } from 'react'
-// import './forms.css'
-// // import fire from '../firebase'
-// import { auth, db } from '../firebase';
-// import {
-//   getDocs,
-//   collection,
-//   setDoc,
-//   doc,
-//   query,
-//   where
-// } from 'firebase/firestore';
-// import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth'; // if needed
-
-
-// export default class Sdel extends Component{
-//    constructor(props){
-//       super(props);
-//       this.state = {
-//          S_ID: ''
-//       }
-//       this.handleChange=this.handleChange.bind(this);
-//       this.remove=this.remove.bind(this);
-//    }
-//    handleChange(event){
-//       this.setState({
-//          S_ID : event.target.value
-//       });
-//       console.log(this.state.S_ID);
-     
-//    }
-//    remove(event){
-//       fire.firestore().collection("Student").doc(this.state.S_ID.toString()).delete()
-//       .then(
-//          window.alert((this.state.S_ID.toString()).concat(" is removed!"))
-//       )
-//       event.preventDefault();
-//    }
-//    render(){
-//       return(
-//          <div>
-//          <h3 style={{fontFamily:"Roboto",marginLeft:"20px"}}>
-//             <b>REMOVE STUDENT</b>
-//          </h3>
-//          <form>
-//          <div><input type="text" placeholder="Student_id" style={{marginLeft:"30px"}} onChange={this.handleChange} required/></div>
-        
-//          <div><input type="submit" value="Remove" style={{marginBottom:"20px"}} onClick={this.remove}/></div>
-        
-        
-//         </form>
-//         </div>
-//       )
-//    }
-// }
